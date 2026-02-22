@@ -45,5 +45,7 @@ fn repl() {
 }
 
 fn run(input: String) {
-    debug!("Running: {}", input);
+    for token in scanner::scan(&input) {
+        debug!("{:?}", token);
+    }
 }
