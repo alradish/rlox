@@ -1,0 +1,9 @@
+[package]
+name = "rlox"
+version = "0.1.0"
+edition = "2024"
+authors = ["Alexander Raish"]
+description = "A Rust implementation of the Lox programming language"
+repository = "https://github.com/alradish/rlox"
+
+[dependencies]
