@@ -75,6 +75,7 @@ impl Scanner {
                 None
             },
             '"' => self.string(),
+            c if is_digit(c) => self.number(),
             _ => {
                 self.error("", format!("Unknown character '{}'", c).as_str());
                 None
@@ -103,6 +104,34 @@ impl Scanner {
             self.character,
         ))
     }
+
+    fn number(&mut self) -> Option<Token> {
+        while is_digit(self.peek()) {
+            self.advance();
+        }
+        if self.peek() == '.' && is_digit(self.peek_next()) {
+            self.advance();
+            while is_digit(self.peek()) {
+                self.advance();
+            }
+        }
+        let number_string = self.source[self.start..self.offset].iter().collect::<String>();
+        let Ok(number) = number_string.parse::<f64>() else {
+            self.error("", format!("Failed to parse number {}.", number_string).as_str());
+            return None;
+        };
+
+        Some(Token::new(
+            TokenType::Number,
+            Some(LiteralValue::Number(number)),
+            self.line,
+            self.character,
+        ))
+    }
+}
+
+fn is_digit(c: char) -> bool {
+    c >= '0' && c <= '9'
 }
 
 /// Token manipulation and utility functions
@@ -114,6 +143,10 @@ impl Scanner {
 
     fn peek(&self) -> char {
         if self.is_at_end() { '\0' } else { self.source[self.offset] }
+    }
+
+    fn peek_next(&self) -> char {
+        if self.offset + 1 >= self.source.len() { '\0' } else { self.source[self.offset + 1] }
     }
 
     fn check(&mut self, expected: char) -> bool {
@@ -325,5 +358,15 @@ mod tests {
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenType::String);
         assert_eq!(tokens[0].literal, Some(LiteralValue::String("Hello, world!".to_string())));
+    }
+
+    #[test]
+    fn test_number() {
+        init_logger();
+        let source = "123.456";
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenType::Number);
+        assert_eq!(tokens[0].literal, Some(LiteralValue::Number(123.456)));
     }
 }
