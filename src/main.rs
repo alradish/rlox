@@ -12,6 +12,10 @@ mod scanner;
 struct RloxArgs {
     /// Path to the script file to execute
     script: Option<String>,
+
+    /// Print tokens during execution
+    #[arg(short, long, default_value_t = true)]
+    print_tokens: bool,
 }
 
 fn main() {
@@ -20,16 +24,16 @@ fn main() {
     let args = RloxArgs::parse();
     if let Some(script) = args.script {
         info!("Executing script: {}", script);
-        run_file(PathBuf::from(&script).as_path());
+        run_file(PathBuf::from(&script).as_path(), args.print_tokens);
     } else {
         info!("Run in interactive mode.");
         repl();
     }
 }
 
-fn run_file(path: &Path) {
+fn run_file(path: &Path, print_tokens: bool) {
     match std::fs::read_to_string(path) {
-        Ok(contents) => run(contents),
+        Ok(contents) => run(contents, print_tokens),
         Err(e) => error!("Failed to read file: {}", e),
     }
 }
@@ -40,12 +44,13 @@ fn repl() {
         print!("> ");
         std::io::stdout().flush().unwrap();
         std::io::stdin().read_line(&mut input).unwrap();
-        run(input);
+        run(input, false);
     }
 }
 
-fn run(input: String) {
-    for token in scanner::scan(&input) {
-        debug!("{:?}", token);
+fn run(input: String, print_tokens: bool) {
+    let tokens = scanner::scan(&input);
+    if print_tokens {
+        println!("{}", scanner::pretty(&tokens.collect::<Vec<scanner::Token>>()));
     }
 }

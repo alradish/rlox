@@ -381,6 +381,23 @@ impl TokenType {
     }
 }
 
+pub fn pretty(tokens: &Vec<Token>) -> String {
+    let mut string_builder = String::new();
+    let mut current_line = 1;
+    for token in tokens {
+        if token.line > current_line {
+            string_builder.push('\n');
+            current_line = token.line;
+        }
+        string_builder.push_str(&format!("[{:?}]", match token.token_type {
+            TokenType::Identifier | TokenType::String | TokenType::Number =>
+                format!("{:?}", token.literal.as_ref().unwrap()),
+            _ => format!("{:?}", token.token_type),
+        }));
+    }
+    string_builder
+}
+
 #[cfg(test)]
 mod tests {
     use log::LevelFilter::Trace;
