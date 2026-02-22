@@ -71,8 +71,7 @@ impl Scanner {
             },
             ' ' | '\r' | '\t' => None,
             '\n' => {
-                self.line += 1;
-                self.character = 0;
+                self.next_line();
                 None
             },
             '"' => self.string(),
@@ -86,8 +85,7 @@ impl Scanner {
     fn string(&mut self) -> Option<Token> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
-                self.line += 1;
-                self.character = 0;
+                self.next_line();
             }
             self.advance();
         }
@@ -104,6 +102,14 @@ impl Scanner {
             self.line,
             self.character,
         ))
+    }
+}
+
+/// Token manipulation and utility functions
+impl Scanner {
+    fn next_line(&mut self) {
+        self.line += 1;
+        self.character = 0;
     }
 
     fn peek(&self) -> char {
@@ -144,7 +150,10 @@ impl Scanner {
         self.character += 1;
         result
     }
+}
 
+/// Error handling
+impl Scanner {
     fn error(&mut self, location: &str, message: &str) {
         let error = ScannerError {
             location: location.to_string(),
