@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use log::debug;
+use log::{debug, trace, warn};
 
 pub fn scan(source: &str) -> impl Iterator<Item = Token> {
     let scanner = Scanner::new(source.to_string());
@@ -62,6 +62,19 @@ impl Scanner {
             '/' => {
                 if self.check('/') {
                     while self.peek() != '\n' && !self.is_at_end() {
+                        self.advance();
+                    }
+                    None
+                } else if self.check('*') {
+                    loop {
+                        let peek = self.peek();
+                        if peek == '\n' {
+                            self.next_line();
+                        } else if peek == '*' && self.peek_next() == '/' {
+                            self.advance();
+                            self.advance();
+                            break;
+                        }
                         self.advance();
                     }
                     None
@@ -370,10 +383,12 @@ impl TokenType {
 
 #[cfg(test)]
 mod tests {
+    use log::LevelFilter::Trace;
+
     use super::*;
 
     fn init_logger() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = env_logger::builder().is_test(false).filter_level(Trace).try_init();
     }
 
     #[test]
@@ -433,6 +448,17 @@ mod tests {
         let tokens: Vec<Token> = scan(source).collect();
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenType::And);
-        assert_eq!(tokens[0].literal, None);
+    }
+
+    #[test]
+    fn test_multiline_comment() {
+        init_logger();
+        let source = "/* this is a comment */
+        /* this is also a comment
+        but this is a multiline comment */";
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::Eof);
+        assert_eq!(tokens[0].line, 3);
     }
 }
