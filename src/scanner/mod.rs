@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use log::{debug, error};
+use log::debug;
 
 pub fn scan(source: &str) -> impl Iterator<Item = Token> {
     let scanner = Scanner::new(source.to_string());
@@ -204,7 +204,7 @@ impl Debug for LiteralValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -253,4 +253,33 @@ enum TokenType {
     While,
 
     Eof,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init_logger() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    #[test]
+    fn test_token_debug() {
+        init_logger();
+        let token =
+            Token::new(TokenType::Identifier, Some(LiteralValue::String("test".to_string())), 1, 1);
+        assert_eq!(format!("{:?}", token), "Identifier(1,1)[test]");
+    }
+
+    #[test]
+    fn test_many_tokens() {
+        init_logger();
+        let source = "// this is a comment
+(( )){} // grouping stuff
+!*+-/=<> <= == // operators";
+
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 17);
+        assert_eq!(tokens.last().unwrap().token_type, TokenType::Eof);
+    }
 }
