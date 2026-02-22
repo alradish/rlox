@@ -76,6 +76,7 @@ impl Scanner {
             },
             '"' => self.string(),
             c if is_digit(c) => self.number(),
+            c if is_alpha(c) => self.identifier(),
             _ => {
                 self.error("", format!("Unknown character '{}'", c).as_str());
                 None
@@ -128,10 +129,28 @@ impl Scanner {
             self.character,
         ))
     }
+
+    fn identifier(&mut self) -> Option<Token> {
+        while is_alpha(self.peek()) || is_digit(self.peek()) || self.peek() == '_' {
+            self.advance();
+        }
+        let identifier_string = self.source[self.start..self.offset].iter().collect::<String>();
+        let token_type = TokenType::keyword(&identifier_string).unwrap_or(TokenType::Identifier);
+        Some(Token::new(
+            token_type,
+            Some(LiteralValue::String(identifier_string)),
+            self.line,
+            self.character,
+        ))
+    }
 }
 
 fn is_digit(c: char) -> bool {
-    c >= '0' && c <= '9'
+    c.is_ascii_digit()
+}
+
+fn is_alpha(c: char) -> bool {
+    c.is_ascii_alphabetic()
 }
 
 /// Token manipulation and utility functions
@@ -178,6 +197,9 @@ impl Scanner {
     }
 
     fn advance(&mut self) -> char {
+        if self.is_at_end() {
+            return '\0';
+        }
         let result = self.source[self.offset];
         self.offset += 1;
         self.character += 1;
@@ -322,6 +344,30 @@ enum TokenType {
     Eof,
 }
 
+impl TokenType {
+    fn keyword(identifier: &str) -> Option<TokenType> {
+        match identifier {
+            "and" => Some(TokenType::And),
+            "class" => Some(TokenType::Class),
+            "else" => Some(TokenType::Else),
+            "false" => Some(TokenType::False),
+            "for" => Some(TokenType::For),
+            "fun" => Some(TokenType::Fun),
+            "if" => Some(TokenType::If),
+            "nil" => Some(TokenType::Nil),
+            "or" => Some(TokenType::Or),
+            "print" => Some(TokenType::Print),
+            "return" => Some(TokenType::Return),
+            "super" => Some(TokenType::Super),
+            "this" => Some(TokenType::This),
+            "true" => Some(TokenType::True),
+            "var" => Some(TokenType::Var),
+            "while" => Some(TokenType::While),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,5 +414,25 @@ mod tests {
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenType::Number);
         assert_eq!(tokens[0].literal, Some(LiteralValue::Number(123.456)));
+    }
+
+    #[test]
+    fn test_identifier() {
+        init_logger();
+        let source = "identifier";
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenType::Identifier);
+        assert_eq!(tokens[0].literal, Some(LiteralValue::String("identifier".to_string())));
+    }
+
+    #[test]
+    fn test_keyword() {
+        init_logger();
+        let source = "and";
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenType::And);
+        assert_eq!(tokens[0].literal, None);
     }
 }
