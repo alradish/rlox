@@ -75,11 +75,35 @@ impl Scanner {
                 self.character = 0;
                 None
             },
+            '"' => self.string(),
             _ => {
                 self.error("", format!("Unknown character '{}'", c).as_str());
                 None
             },
         }
+    }
+
+    fn string(&mut self) -> Option<Token> {
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+                self.character = 0;
+            }
+            self.advance();
+        }
+        if self.is_at_end() {
+            self.error("", "Unterminated string.");
+            return None;
+        }
+        self.advance();
+        Some(Token::new(
+            TokenType::String,
+            Some(LiteralValue::String(
+                self.source[(self.start + 1)..(self.offset - 1)].iter().collect(),
+            )),
+            self.line,
+            self.character,
+        ))
     }
 
     fn peek(&self) -> char {
@@ -190,6 +214,7 @@ impl Debug for Token {
     }
 }
 
+#[derive(PartialEq)]
 pub enum LiteralValue {
     Number(f64),
     String(String),
@@ -281,5 +306,15 @@ mod tests {
         let tokens: Vec<Token> = scan(source).collect();
         assert_eq!(tokens.len(), 17);
         assert_eq!(tokens.last().unwrap().token_type, TokenType::Eof);
+    }
+
+    #[test]
+    fn test_string() {
+        init_logger();
+        let source = "\"Hello, world!\"";
+        let tokens: Vec<Token> = scan(source).collect();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenType::String);
+        assert_eq!(tokens[0].literal, Some(LiteralValue::String("Hello, world!".to_string())));
     }
 }
