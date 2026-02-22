@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>RLox REPL</title>
+    <style>
+        body {
+            font-family: monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+
+        #terminal {
+            border: 1px solid #333;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #000;
+        }
+
+        #input-container {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        #prompt {
+            margin-right: 5px;
+            color: #569cd6;
+        }
+
+        #input {
+            background: none;
+            border: none;
+            color: #d4d4d4;
+            font-family: monospace;
+            font-size: 16px;
+            flex-grow: 1;
+            outline: none;
+        }
+
+        .output {
+            white-space: pre-wrap;
+            margin-bottom: 5px;
+        }
+
+        .command {
+            color: #ce9178;
+        }
+    </style>
+</head>
+<body>
+<h3>RLox Interactive REPL</h3>
+<div id="terminal">
+    <div class="output">Welcome to RLox! Type your code below.</div>
+</div>
+<div id="input-container">
+    <span id="prompt">&gt;</span>
+    <input autofocus id="input" type="text">
+</div>
+
+<script type="module">
+    import init, {run_lox} from './pkg/rlox.js';
+
+    async function start() {
+        await init();
+        const input = document.getElementById('input');
+        const terminal = document.getElementById('terminal');
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const code = input.value;
+                input.value = '';
+
+                // Display command
+                const cmdDiv = document.createElement('div');
+                cmdDiv.className = 'output command';
+                cmdDiv.textContent = `> ${code}`;
+                terminal.appendChild(cmdDiv);
+
+                // Run Lox
+                try {
+                    const result = run_lox(code);
+                    const resDiv = document.createElement('div');
+                    resDiv.className = 'output';
+                    resDiv.textContent = result;
+                    terminal.appendChild(resDiv);
+                } catch (err) {
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'output';
+                    errDiv.style.color = 'red';
+                    errDiv.textContent = `Error: ${err}`;
+                    terminal.appendChild(errDiv);
+                }
+
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        });
+    }
+
+    start();
+</script>
+</body>
+</html>

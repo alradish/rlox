@@ -4,9 +4,8 @@ use std::{
 };
 
 use clap::Parser;
-use log::{debug, error, info};
-
-mod scanner;
+use log::{error, info};
+use rlox;
 
 #[derive(Debug, Parser)]
 struct RloxArgs {
@@ -33,7 +32,7 @@ fn main() {
 
 fn run_file(path: &Path, print_tokens: bool) {
     match std::fs::read_to_string(path) {
-        Ok(contents) => run(contents, print_tokens),
+        Ok(contents) => rlox::run(contents, print_tokens),
         Err(e) => error!("Failed to read file: {}", e),
     }
 }
@@ -44,13 +43,6 @@ fn repl() {
         print!("> ");
         std::io::stdout().flush().unwrap();
         std::io::stdin().read_line(&mut input).unwrap();
-        run(input, false);
-    }
-}
-
-fn run(input: String, print_tokens: bool) {
-    let tokens = scanner::scan(&input);
-    if print_tokens {
-        println!("{}", scanner::pretty(&tokens.collect::<Vec<scanner::Token>>()));
+        rlox::run(input, false);
     }
 }
