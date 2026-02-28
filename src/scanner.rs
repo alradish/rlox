@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use log::{debug, trace, warn};
+use log::debug;
 
 pub fn scan(source: &str) -> impl Iterator<Item = Token> {
     let scanner = Scanner::new(source.to_string());
