@@ -4,24 +4,34 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 pub fn scan(source: &str) -> impl Iterator<Item = Token> {
-    let scanner = Scanner::new(source.to_string());
-    scanner.scan()
+    Scanner::scan_string(source.to_string()).tokens.into_iter()
 }
 
-struct Scanner {
+pub struct Scanner {
     errors: Vec<ScannerError>,
-    source: Vec<char>, // todo i am not sure that this is rust way
+    source: Vec<char>,
+    tokens: Vec<Token>,
     start: usize,
     offset: usize,
     line: usize,
     character: usize,
 }
 
+/// Token scanning
 impl Scanner {
+    pub fn scan_string(source: String) -> Scanner {
+        // hack until I decide what to do with scan(&mut self)
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan().collect();
+        scanner.tokens = tokens;
+        scanner
+    }
+
     fn new(source: String) -> Scanner {
         Scanner {
             errors: vec![],
             source: source.chars().collect(),
+            tokens: vec![],
             start: 0,
             offset: 0,
             line: 1,
@@ -29,7 +39,8 @@ impl Scanner {
         }
     }
 
-    fn scan(mut self) -> impl Iterator<Item = Token> {
+    // todo should fill inner state?
+    fn scan(&mut self) -> impl Iterator<Item = Token> {
         let mut result = vec![];
         while !self.is_at_end() {
             self.start = self.offset;
@@ -39,6 +50,10 @@ impl Scanner {
         }
         result.push(Token::eof(self.line, self.character + 1));
         result.into_iter()
+    }
+
+    pub fn get_tokens(&self) -> Vec<Token> {
+        self.tokens.clone()
     }
 
     fn scan_token(&mut self) -> Option<Token> {
@@ -213,6 +228,7 @@ impl Scanner {
 }
 
 /// Error handling
+/// TODO: delegate to error accumulator later
 impl Scanner {
     fn error(&mut self, location: &str, message: &str) {
         let error = ScannerError {
@@ -224,9 +240,14 @@ impl Scanner {
         debug!("Encountered error: {}.", error);
         self.errors.push(error);
     }
+
+    pub fn get_errors(&self) -> Vec<ScannerError> {
+        self.errors.clone()
+    }
 }
 
-struct ScannerError {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannerError {
     location: String,
     line: usize,
     character: usize,
@@ -239,7 +260,7 @@ impl Display for ScannerError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -288,7 +309,7 @@ impl Debug for Token {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,

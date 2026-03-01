@@ -1,3 +1,5 @@
+use std::ops::Not;
+
 use wasm_bindgen::prelude::*;
 
 pub mod scanner;
@@ -11,9 +13,17 @@ pub fn run(input: String, print_tokens: bool) {
 
 #[wasm_bindgen]
 pub fn run_lox(input: String) -> String {
-    let tokens: Vec<scanner::Token> = scanner::scan(&input).collect();
     // For now, just return the pretty-printed tokens
-    scanner::pretty(&tokens)
+    let scanner = scanner::Scanner::scan_string(input);
+
+    let mut output = String::new();
+    if scanner.get_errors().is_empty().not() {
+        scanner.get_errors().iter().for_each(|error| {
+            output.push_str(&format!("{}\n", error));
+        });
+    }
+    output.push_str(&format!("{}\n", scanner::pretty(&scanner.get_tokens())));
+    output
 }
 
 #[wasm_bindgen]
