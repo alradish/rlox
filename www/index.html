@@ -6,28 +6,78 @@
     <title>RLox REPL</title>
     <style>
         body {
-            font-family: monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1e1e1e;
             color: #d4d4d4;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 10px 20px;
+            background-color: #252526;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .mode-toggle {
+            background: #333;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .mode-toggle:hover {
+            background: #444;
+        }
+
+        .mode-toggle.active {
+            background: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+
+        #container {
+            flex-grow: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* REPL Mode Styles */
+        #repl-view {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
             padding: 20px;
         }
 
         #terminal {
             border: 1px solid #333;
             padding: 10px;
-            height: 400px;
+            flex-grow: 1;
             overflow-y: auto;
             background-color: #000;
+            font-family: monospace;
         }
 
         #input-container {
             display: flex;
             margin-top: 10px;
+            padding: 5px;
+            background-color: #252526;
+            border: 1px solid #333;
         }
 
         #prompt {
             margin-right: 5px;
             color: #569cd6;
+            font-family: monospace;
         }
 
         #input {
@@ -40,6 +90,96 @@
             outline: none;
         }
 
+        /* Tokenization Mode Styles */
+        #token-view {
+            display: none; /* Hidden by default */
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        .split-view {
+            display: flex;
+            height: 100%;
+            width: 100%;
+        }
+
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid #333;
+        }
+
+        .pane-header {
+            padding: 5px 15px;
+            background-color: #2d2d2d;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #969696;
+            border-bottom: 1px solid #333;
+        }
+
+        #editor {
+            flex-grow: 1;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 15px;
+            resize: none;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            outline: none;
+            tab-size: 4;
+        }
+
+        #visualization {
+            flex-grow: 1;
+            background-color: #1e1e1e;
+            padding: 15px;
+            overflow: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            position: relative;
+        }
+
+        .token-tag {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            width: 120px;
+            height: 60px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .token-type {
+            font-size: 11px;
+            color: #569cd6;
+            font-weight: bold;
+            margin-bottom: 3px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 2px;
+        }
+
+        .token-lexeme {
+            font-size: 14px;
+            color: #ce9178;
+            word-break: break-all;
+        }
+
+        .token-pos {
+            font-size: 9px;
+            color: #888;
+            margin-top: 3px;
+            text-align: right;
+        }
+
         .output {
             white-space: pre-wrap;
             margin-bottom: 5px;
@@ -48,26 +188,94 @@
         .command {
             color: #ce9178;
         }
+
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
-<h3>RLox Interactive REPL</h3>
-<div id="terminal">
-    <div class="output">Welcome to RLox! Type your code below.</div>
-</div>
-<div id="input-container">
-    <span id="prompt">&gt;</span>
-    <input autofocus id="input" type="text">
+<header>
+    <h3 style="margin: 0;">RLox</h3>
+    <div>
+        <button class="mode-toggle active" id="btn-repl">REPL</button>
+        <button class="mode-toggle" id="btn-tokens">Tokenization</button>
+    </div>
+</header>
+
+<div id="container">
+    <div id="repl-view">
+        <div id="terminal">
+            <div class="output">Welcome to RLox REPL! Type your code below.</div>
+        </div>
+        <div id="input-container">
+            <span id="prompt">&gt;</span>
+            <input autofocus id="input" type="text">
+        </div>
+    </div>
+
+    <div id="token-view">
+        <div class="split-view">
+            <div class="pane">
+                <div class="pane-header">Editor</div>
+                <textarea id="editor" placeholder="Type Lox code here..."></textarea>
+            </div>
+            <div class="pane">
+                <div class="pane-header">Tokenization Visualization</div>
+                <div id="visualization"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
-    import init, {run_lox} from './pkg/rlox.js';
+    import init, {run_lox, tokenize} from './pkg/rlox.js';
 
     async function start() {
-        await init();
+        try {
+            await init();
+        } catch (err) {
+            console.error('Failed to initialize WASM:', err);
+            const terminal = document.getElementById('terminal');
+            if (terminal) {
+                const errDiv = document.createElement('div');
+                errDiv.style.color = 'red';
+                errDiv.textContent = `CRITICAL ERROR: Failed to load WASM module. Make sure to run 'wasm-pack build --target web --out-dir www/pkg' first.\n${err}`;
+                terminal.appendChild(errDiv);
+            }
+            return;
+        }
+
+        // UI Elements
+        const replView = document.getElementById('repl-view');
+        const tokenView = document.getElementById('token-view');
+        const btnRepl = document.getElementById('btn-repl');
+        const btnTokens = document.getElementById('btn-tokens');
+
         const input = document.getElementById('input');
         const terminal = document.getElementById('terminal');
+        const editor = document.getElementById('editor');
+        const visualization = document.getElementById('visualization');
 
+        // Mode Switching
+        btnRepl.addEventListener('click', () => {
+            btnRepl.classList.add('active');
+            btnTokens.classList.remove('active');
+            replView.style.display = 'flex';
+            tokenView.style.display = 'none';
+            input.focus();
+        });
+
+        btnTokens.addEventListener('click', () => {
+            btnTokens.classList.add('active');
+            btnRepl.classList.remove('active');
+            replView.style.display = 'none';
+            tokenView.style.display = 'flex';
+            editor.focus();
+            updateVisualization();
+        });
+
+        // REPL Logic
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const code = input.value;
@@ -97,6 +305,101 @@
                 terminal.scrollTop = terminal.scrollHeight;
             }
         });
+
+        // Tokenization Visualization Logic
+        function updateVisualization() {
+            const code = editor.value;
+            if (!code) {
+                visualization.innerHTML = '';
+                return;
+            }
+
+            try {
+                const tokens = tokenize(code);
+                visualization.innerHTML = '';
+
+                const tagWidth = 130; // Including some gap
+                const tagHeight = 70; // Including some gap
+                const padding = 15;
+
+                // Group tokens by line
+                const tokensByLine = {};
+                tokens.forEach(token => {
+                    if (!tokensByLine[token.line]) {
+                        tokensByLine[token.line] = [];
+                    }
+                    tokensByLine[token.line].push(token);
+                });
+
+                Object.keys(tokensByLine).forEach(lineNum => {
+                    const lineTokens = tokensByLine[lineNum];
+                    // Sort by character within the line
+                    lineTokens.sort((a, b) => a.character - b.character);
+
+                    let lastRight = 0;
+                    lineTokens.forEach(token => {
+                        const tag = document.createElement('div');
+                        tag.className = 'token-tag';
+
+                        // Position based on line and character, but ensuring no overlap
+                        // token.line is 1-based, token.character is 0-based
+                        const top = (token.line - 1) * tagHeight + padding;
+
+                        // Calculate ideal position based on character position
+                        // Using a larger multiplier (e.g., 25px per character) for better spacing
+                        let left = token.character * 25 + padding;
+
+                        // Ensure it doesn't overlap the previous token on the same line
+                        if (left < lastRight + padding) {
+                            left = lastRight + padding;
+                        }
+
+                        tag.style.top = `${top}px`;
+                        tag.style.left = `${left}px`;
+
+                        // Update lastRight for the next token on this line
+                        // tagWidth is 120px in CSS
+                        lastRight = left + 120;
+
+                        const type = document.createElement('div');
+                        type.className = 'token-type';
+                        type.textContent = token.token_type;
+
+                        if (token.literal !== null && token.literal !== undefined) {
+                            const literal = document.createElement('div');
+                            literal.className = 'token-literal';
+                            literal.style.fontSize = '0.8em';
+                            literal.style.color = '#ce9178';
+                            if (typeof token.literal === 'object') {
+                                literal.textContent = `Val: ${Object.values(token.literal)[0]}`;
+                            } else {
+                                literal.textContent = `Val: ${token.literal}`;
+                            }
+                            type.appendChild(literal);
+                        }
+
+                        const lexeme = document.createElement('div');
+                        lexeme.className = 'token-lexeme';
+                        lexeme.textContent = token.lexeme || ' ';
+                        lexeme.title = token.lexeme; // Show full lexeme on hover if clipped
+
+                        const pos = document.createElement('div');
+                        pos.className = 'token-pos';
+                        pos.textContent = `L${token.line}:${token.character}`;
+
+                        tag.appendChild(type);
+                        tag.appendChild(lexeme);
+                        tag.appendChild(pos);
+                        visualization.appendChild(tag);
+                    });
+                });
+            } catch (err) {
+                visualization.textContent = `Error: ${err}`;
+                visualization.style.color = 'red';
+            }
+        }
+
+        editor.addEventListener('input', updateVisualization);
     }
 
     start();

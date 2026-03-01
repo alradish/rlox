@@ -2,6 +2,13 @@ use wasm_bindgen::prelude::*;
 
 pub mod scanner;
 
+pub fn run(input: String, print_tokens: bool) {
+    let tokens: Vec<scanner::Token> = scanner::scan(&input).collect();
+    if print_tokens {
+        println!("{}", scanner::pretty(&tokens));
+    }
+}
+
 #[wasm_bindgen]
 pub fn run_lox(input: String) -> String {
     let tokens: Vec<scanner::Token> = scanner::scan(&input).collect();
@@ -9,9 +16,8 @@ pub fn run_lox(input: String) -> String {
     scanner::pretty(&tokens)
 }
 
-pub fn run(input: String, print_tokens: bool) {
+#[wasm_bindgen]
+pub fn tokenize(input: String) -> JsValue {
     let tokens: Vec<scanner::Token> = scanner::scan(&input).collect();
-    if print_tokens {
-        println!("{}", scanner::pretty(&tokens));
-    }
+    serde_wasm_bindgen::to_value(&tokens).unwrap()
 }

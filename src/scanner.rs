@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use log::debug;
+use serde::{Deserialize, Serialize};
 
 pub fn scan(source: &str) -> impl Iterator<Item = Token> {
     let scanner = Scanner::new(source.to_string());
