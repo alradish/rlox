@@ -2,6 +2,7 @@ use std::ops::Not;
 
 use wasm_bindgen::prelude::*;
 
+pub mod parser;
 pub mod scanner;
 
 pub fn run(input: String, print_tokens: bool) {

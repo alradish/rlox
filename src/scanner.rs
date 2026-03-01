@@ -209,7 +209,7 @@ impl Scanner {
     }
 
     fn token(&mut self, token_type: TokenType) -> Option<Token> {
-        Some(Token::token(token_type, self.lexeme(), self.line, self.character))
+        Some(Token::new(token_type, self.lexeme(), self.line, self.character))
     }
 
     fn is_at_end(&self) -> bool {
@@ -269,7 +269,7 @@ pub struct Token {
 }
 
 impl Token {
-    fn new(token_type: TokenType, lexeme: String, line: usize, character: usize) -> Token {
+    pub fn new(token_type: TokenType, lexeme: String, line: usize, character: usize) -> Token {
         Token {
             token_type,
             lexeme,
@@ -278,11 +278,7 @@ impl Token {
         }
     }
 
-    fn token(token_type: TokenType, lexeme: String, line: usize, character: usize) -> Token {
-        Token::new(token_type, lexeme, line, character)
-    }
-
-    fn eof(line: usize, character: usize) -> Token {
+    pub fn eof(line: usize, character: usize) -> Token {
         Token::new(TokenType::Eof, "".to_string(), line, character)
     }
 }
