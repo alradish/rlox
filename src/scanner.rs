@@ -10,8 +10,7 @@ pub fn scan(source: &str) -> impl Iterator<Item = Token> {
 
 struct Scanner {
     errors: Vec<ScannerError>,
-    source: Vec<char>,  // todo i am not sure that this is rust way
-    tokens: Vec<Token>, // todo i dont want to store all then return, i want to return iterator
+    source: Vec<char>, // todo i am not sure that this is rust way
     start: usize,
     offset: usize,
     line: usize,
@@ -23,7 +22,6 @@ impl Scanner {
         Scanner {
             errors: vec![],
             source: source.chars().collect(),
-            tokens: vec![],
             start: 0,
             offset: 0,
             line: 1,
@@ -111,11 +109,8 @@ impl Scanner {
         }
         self.advance();
         Some(Token::new(
-            TokenType::String,
+            TokenType::String(self.source[(self.start + 1)..(self.offset - 1)].iter().collect()),
             self.lexeme(),
-            Some(LiteralValue::String(
-                self.source[(self.start + 1)..(self.offset - 1)].iter().collect(),
-            )),
             self.line,
             self.character,
         ))
@@ -137,13 +132,7 @@ impl Scanner {
             return None;
         };
 
-        Some(Token::new(
-            TokenType::Number,
-            lexeme,
-            Some(LiteralValue::Number(number)),
-            self.line,
-            self.character,
-        ))
+        Some(Token::new(TokenType::Number(number), lexeme, self.line, self.character))
     }
 
     fn identifier(&mut self) -> Option<Token> {
@@ -151,14 +140,9 @@ impl Scanner {
             self.advance();
         }
         let identifier_string = self.lexeme();
-        let token_type = TokenType::keyword(&identifier_string).unwrap_or(TokenType::Identifier);
-        Some(Token::new(
-            token_type,
-            identifier_string.clone(),
-            Some(LiteralValue::String(identifier_string)),
-            self.line,
-            self.character,
-        ))
+        let token_type = TokenType::keyword(&identifier_string)
+            .unwrap_or(TokenType::Identifier(identifier_string.clone()));
+        Some(Token::new(token_type, identifier_string, self.line, self.character))
     }
 }
 
@@ -255,74 +239,57 @@ impl Display for ScannerError {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Option<LiteralValue>,
-    line: usize,
-    character: usize,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub line: usize,
+    pub character: usize,
 }
 
 impl Token {
-    fn new(
-        token_type: TokenType,
-        lexeme: String,
-        literal: Option<LiteralValue>,
-        line: usize,
-        character: usize,
-    ) -> Token {
+    fn new(token_type: TokenType, lexeme: String, line: usize, character: usize) -> Token {
         Token {
             token_type,
             lexeme,
-            literal,
             line,
             character,
         }
     }
 
     fn token(token_type: TokenType, lexeme: String, line: usize, character: usize) -> Token {
-        Token::new(token_type, lexeme, None, line, character)
+        Token::new(token_type, lexeme, line, character)
     }
 
     fn eof(line: usize, character: usize) -> Token {
-        Token::new(TokenType::Eof, "".to_string(), None, line, character)
+        Token::new(TokenType::Eof, "".to_string(), line, character)
     }
 }
 
 impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.literal {
-            None => write!(
+        match &self.token_type {
+            TokenType::Identifier(s) | TokenType::String(s) => write!(
+                f,
+                "{:?}({:?},{:?})'{}'[{:?}]",
+                self.token_type, self.line, self.character, self.lexeme, s
+            ),
+            TokenType::Number(n) => write!(
+                f,
+                "{:?}({:?},{:?})'{}'[{:?}]",
+                self.token_type, self.line, self.character, self.lexeme, n
+            ),
+            _ => write!(
                 f,
                 "{:?}({:?},{:?})'{}'",
                 self.token_type, self.line, self.character, self.lexeme
             ),
-            Some(literal) => write!(
-                f,
-                "{:?}({:?},{:?})'{}'[{:?}]",
-                self.token_type, self.line, self.character, self.lexeme, literal
-            ),
         }
     }
 }
 
-#[derive(PartialEq)]
-pub enum LiteralValue {
-    Number(f64),
-    String(String),
-}
-
-impl Debug for LiteralValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LiteralValue::Number(n) => write!(f, "{}", n),
-            LiteralValue::String(s) => write!(f, "{}", s),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum TokenType {
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum TokenType {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -347,9 +314,9 @@ enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier,
-    String,
-    Number,
+    Identifier(String),
+    String(String),
+    Number(f64),
 
     // Keywords.
     And,
@@ -404,9 +371,9 @@ pub fn pretty(tokens: &Vec<Token>) -> String {
             string_builder.push('\n');
             current_line = token.line;
         }
-        string_builder.push_str(&format!("[{:?}]", match token.token_type {
-            TokenType::Identifier | TokenType::String | TokenType::Number =>
-                format!("{:?}", token.literal.as_ref().unwrap()),
+        string_builder.push_str(&format!("[{:?}]", match &token.token_type {
+            TokenType::Identifier(s) | TokenType::String(s) => s.clone(),
+            TokenType::Number(n) => format!("{:?}", n),
             _ => format!("{:?}", token.token_type),
         }));
     }
@@ -426,14 +393,8 @@ mod tests {
     #[test]
     fn test_token_debug() {
         init_logger();
-        let token = Token::new(
-            TokenType::Identifier,
-            "test".to_string(),
-            Some(LiteralValue::String("test".to_string())),
-            1,
-            1,
-        );
-        assert_eq!(format!("{:?}", token), "Identifier(1,1)'test'[test]");
+        let token = Token::new(TokenType::Identifier("test".to_string()), "test".to_string(), 1, 1);
+        assert_eq!(format!("{:?}", token), "Identifier(\"test\")(1,1)'test'[\"test\"]");
     }
 
     #[test]
@@ -454,8 +415,7 @@ mod tests {
         let source = "\"Hello, world!\"";
         let tokens: Vec<Token> = scan(source).collect();
         assert_eq!(tokens.len(), 2);
-        assert_eq!(tokens[0].token_type, TokenType::String);
-        assert_eq!(tokens[0].literal, Some(LiteralValue::String("Hello, world!".to_string())));
+        assert_eq!(tokens[0].token_type, TokenType::String("Hello, world!".to_string()));
     }
 
     #[test]
@@ -464,8 +424,7 @@ mod tests {
         let source = "123.456";
         let tokens: Vec<Token> = scan(source).collect();
         assert_eq!(tokens.len(), 2);
-        assert_eq!(tokens[0].token_type, TokenType::Number);
-        assert_eq!(tokens[0].literal, Some(LiteralValue::Number(123.456)));
+        assert_eq!(tokens[0].token_type, TokenType::Number(123.456));
     }
 
     #[test]
@@ -474,8 +433,7 @@ mod tests {
         let source = "identifier";
         let tokens: Vec<Token> = scan(source).collect();
         assert_eq!(tokens.len(), 2);
-        assert_eq!(tokens[0].token_type, TokenType::Identifier);
-        assert_eq!(tokens[0].literal, Some(LiteralValue::String("identifier".to_string())));
+        assert_eq!(tokens[0].token_type, TokenType::Identifier("identifier".to_string()));
     }
 
     #[test]
@@ -508,19 +466,19 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Var);
         assert_eq!(tokens[0].lexeme, "var");
 
-        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier("x".to_string()));
         assert_eq!(tokens[1].lexeme, "x");
 
         assert_eq!(tokens[2].token_type, TokenType::Equal);
         assert_eq!(tokens[2].lexeme, "=");
 
-        assert_eq!(tokens[3].token_type, TokenType::String);
+        assert_eq!(tokens[3].token_type, TokenType::String("hello".to_string()));
         assert_eq!(tokens[3].lexeme, "\"hello\"");
 
         assert_eq!(tokens[4].token_type, TokenType::Semicolon);
         assert_eq!(tokens[4].lexeme, ";");
 
-        assert_eq!(tokens[5].token_type, TokenType::Number);
+        assert_eq!(tokens[5].token_type, TokenType::Number(123.456));
         assert_eq!(tokens[5].lexeme, "123.456");
 
         assert_eq!(tokens[6].token_type, TokenType::Plus);
