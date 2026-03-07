@@ -141,6 +141,7 @@
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 14px;
             position: relative;
+            min-width: max-content;
         }
 
         #ast-visualization {
@@ -259,6 +260,50 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             box-sizing: border-box;
             overflow: hidden;
+            transition: box-shadow 0.15s, border-color 0.15s, background-color 0.15s;
+            cursor: default;
+        }
+
+        .token-tag:hover {
+            background-color: #3a3a3a;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        /* Token type color categories */
+        .token-tag.cat-keyword  { border-color: #c586c0; }
+        .token-tag.cat-keyword .token-type { color: #c586c0; border-bottom-color: #c586c0; }
+        .token-tag.cat-keyword:hover { border-color: #d9a0d9; }
+
+        .token-tag.cat-literal  { border-color: #4ec994; }
+        .token-tag.cat-literal .token-type { color: #4ec994; border-bottom-color: #4ec994; }
+        .token-tag.cat-literal:hover { border-color: #6eddb0; }
+
+        .token-tag.cat-identifier { border-color: #9cdcfe; }
+        .token-tag.cat-identifier .token-type { color: #9cdcfe; border-bottom-color: #9cdcfe; }
+        .token-tag.cat-identifier:hover { border-color: #bce8ff; }
+
+        .token-tag.cat-operator { border-color: #dcdcaa; }
+        .token-tag.cat-operator .token-type { color: #dcdcaa; border-bottom-color: #dcdcaa; }
+        .token-tag.cat-operator:hover { border-color: #f0f0c0; }
+
+        .token-tag.cat-punctuation { border-color: #808080; }
+        .token-tag.cat-punctuation .token-type { color: #aaa; border-bottom-color: #808080; }
+        .token-tag.cat-punctuation:hover { border-color: #aaa; }
+
+        .token-tag.cat-eof { border-color: #555; opacity: 0.5; }
+        .token-tag.cat-eof .token-type { color: #777; }
+
+        /* Line-number gutter label */
+        .viz-line-label {
+            position: absolute;
+            font-size: 11px;
+            color: #555;
+            text-align: right;
+            width: 30px;
+            line-height: 60px; /* vertically center within row height */
+            user-select: none;
+            pointer-events: none;
         }
 
         .token-type {
@@ -440,6 +485,31 @@
         });
 
         // Tokenization Visualization Logic
+
+        // Map token type strings to CSS category classes
+        function tokenCategory(tokenType) {
+            const keywords = new Set([
+                'And','Class','Else','False','Fun','For','If','Nil','Or',
+                'Print','Return','Super','This','True','Var','While'
+            ]);
+            const literals = new Set(['Number','String','True','False','Nil']);
+            const operators = new Set([
+                'Minus','Plus','Slash','Star','Bang','BangEqual',
+                'Equal','EqualEqual','Greater','GreaterEqual','Less','LessEqual'
+            ]);
+            const punctuation = new Set([
+                'LeftParen','RightParen','LeftBrace','RightBrace',
+                'Comma','Dot','Semicolon'
+            ]);
+            if (tokenType === 'Eof') return 'cat-eof';
+            if (tokenType === 'Identifier') return 'cat-identifier';
+            if (literals.has(tokenType)) return 'cat-literal';
+            if (keywords.has(tokenType)) return 'cat-keyword';
+            if (operators.has(tokenType)) return 'cat-operator';
+            if (punctuation.has(tokenType)) return 'cat-punctuation';
+            return '';
+        }
+
         function updateVisualization() {
             const code = editor.value;
             if (!code) {
@@ -451,9 +521,10 @@
                 const tokens = tokenize(code);
                 visualization.innerHTML = '';
 
-                const tagWidth = 130; // Including some gap
-                const tagHeight = 70; // Including some gap
-                const padding = 15;
+                const tagWidth = 120;  // CSS .token-tag width
+                const tagHeight = 70;  // row height including gap
+                const padding = 10;
+                const gutterWidth = 36; // space reserved for line-number labels
 
                 // Group tokens by line
                 const tokensByLine = {};
@@ -466,33 +537,39 @@
 
                 Object.keys(tokensByLine).forEach(lineNum => {
                     const lineTokens = tokensByLine[lineNum];
-                    // Sort by character within the line
+                    // Sort by character position within the line
                     lineTokens.sort((a, b) => a.character - b.character);
+
+                    const rowTop = (parseInt(lineNum) - 1) * tagHeight + padding;
+
+                    // Line-number gutter label
+                    const label = document.createElement('div');
+                    label.className = 'viz-line-label';
+                    label.textContent = lineNum;
+                    label.style.top = `${rowTop}px`;
+                    label.style.left = `0px`;
+                    visualization.appendChild(label);
 
                     let lastRight = 0;
                     lineTokens.forEach(token => {
                         const tag = document.createElement('div');
-                        tag.className = 'token-tag';
 
-                        // Position based on line and character, but ensuring no overlap
-                        // token.line is 1-based, token.character is 0-based
-                        const top = (token.line - 1) * tagHeight + padding;
+                        // token.character is 1-based END offset after last char consumed.
+                        // Subtract lexeme length to recover the 0-based START column.
+                        const startCol = token.character - token.lexeme.length;
+                        let left = startCol * 25 + gutterWidth + padding;
 
-                        // Calculate ideal position based on character position
-                        // Using a larger multiplier (e.g., 25px per character) for better spacing
-                        let left = token.character * 25 + padding;
-
-                        // Ensure it doesn't overlap the previous token on the same line
+                        // Ensure no overlap with the previous token on the same line
                         if (left < lastRight + padding) {
                             left = lastRight + padding;
                         }
 
-                        tag.style.top = `${top}px`;
+                        const cat = tokenCategory(token.token_type);
+                        tag.className = `token-tag${cat ? ' ' + cat : ''}`;
+                        tag.style.top = `${rowTop}px`;
                         tag.style.left = `${left}px`;
 
-                        // Update lastRight for the next token on this line
-                        // tagWidth is 120px in CSS
-                        lastRight = left + 120;
+                        lastRight = left + tagWidth;
 
                         const type = document.createElement('div');
                         type.className = 'token-type';
@@ -514,11 +591,12 @@
                         const lexeme = document.createElement('div');
                         lexeme.className = 'token-lexeme';
                         lexeme.textContent = token.lexeme || ' ';
-                        lexeme.title = token.lexeme; // Show full lexeme on hover if clipped
+                        lexeme.title = token.lexeme; // show full text on hover if clipped
 
                         const pos = document.createElement('div');
                         pos.className = 'token-pos';
-                        pos.textContent = `L${token.line}:${token.character}`;
+                        // Show corrected start column (0-based) in position hint
+                        pos.textContent = `L${token.line}:${startCol}`;
 
                         tag.appendChild(type);
                         tag.appendChild(lexeme);
@@ -526,6 +604,16 @@
                         visualization.appendChild(tag);
                     });
                 });
+
+                // Size the container so scrollbars appear correctly
+                let maxRight = 0;
+                let maxBottom = 0;
+                visualization.querySelectorAll('.token-tag').forEach(el => {
+                    maxRight = Math.max(maxRight, el.offsetLeft + tagWidth + padding);
+                    maxBottom = Math.max(maxBottom, el.offsetTop + tagHeight + padding);
+                });
+                visualization.style.minWidth = `${maxRight}px`;
+                visualization.style.minHeight = `${maxBottom}px`;
             } catch (err) {
                 visualization.textContent = `Error: ${err}`;
                 visualization.style.color = 'red';
