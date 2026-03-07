@@ -91,7 +91,7 @@
         }
 
         /* Tokenization Mode Styles */
-        #token-view {
+        #token-view, #ast-view {
             display: none; /* Hidden by default */
             flex-grow: 1;
             width: 100%;
@@ -120,7 +120,7 @@
             border-bottom: 1px solid #333;
         }
 
-        #editor {
+        #editor, #ast-editor {
             flex-grow: 1;
             background-color: #1e1e1e;
             color: #d4d4d4;
@@ -133,7 +133,7 @@
             tab-size: 4;
         }
 
-        #visualization {
+        #visualization, #ast-visualization {
             flex-grow: 1;
             background-color: #1e1e1e;
             padding: 15px;
@@ -141,6 +141,109 @@
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 14px;
             position: relative;
+        }
+
+        #ast-visualization {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            min-height: 100%;
+            min-width: fit-content;
+        }
+
+        .ast-tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .ast-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 15px;
+            border: 1px solid #007acc;
+            border-radius: 4px;
+            background-color: #252526;
+            min-width: 80px;
+            z-index: 1;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .ast-node-type {
+            font-size: 11px;
+            color: #569cd6;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .ast-node-val {
+            font-size: 13px;
+            color: #ce9178;
+        }
+
+        /* Tree layout connector lines */
+        .ast-children {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
+            justify-content: center;
+            position: relative;
+            margin-top: 40px;
+        }
+
+        /* Upper vertical line from parent to horizontal line */
+        .ast-children::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: calc(50% - 1px);
+            width: 2px;
+            height: 20px;
+            background-color: #555;
+        }
+
+        .ast-children > .ast-tree {
+            position: relative;
+            padding: 0 10px;
+        }
+
+        /* Horizontal line connecting children */
+        .ast-children > .ast-tree::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            height: 2px;
+            background-color: #555;
+            left: 0;
+            right: 0;
+        }
+
+        /* Hide horizontal line ends */
+        .ast-children > .ast-tree:first-child::after {
+            left: calc(50% - 1px);
+        }
+
+        .ast-children > .ast-tree:last-child::after {
+            right: calc(50% - 1px);
+        }
+
+        /* Remove horizontal line for single child */
+        .ast-children > .ast-tree:only-child::after {
+            display: none;
+        }
+
+        /* Vertical line from horizontal line to child node */
+        .ast-children > .ast-tree::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: calc(50% - 1px);
+            width: 2px;
+            height: 20px;
+            background-color: #555;
         }
 
         .token-tag {
@@ -200,6 +303,7 @@
     <div>
         <button class="mode-toggle active" id="btn-repl">REPL</button>
         <button class="mode-toggle" id="btn-tokens">Tokenization</button>
+        <button class="mode-toggle" id="btn-ast">AST</button>
     </div>
 </header>
 
@@ -218,7 +322,7 @@
         <div class="split-view">
             <div class="pane">
                 <div class="pane-header">Editor</div>
-                <textarea id="editor" placeholder="Type Lox code here..."></textarea>
+                <textarea class="code-editor" id="editor" placeholder="Type Lox code here..."></textarea>
             </div>
             <div class="pane">
                 <div class="pane-header">Tokenization Visualization</div>
@@ -226,10 +330,23 @@
             </div>
         </div>
     </div>
+
+    <div id="ast-view">
+        <div class="split-view">
+            <div class="pane">
+                <div class="pane-header">Editor</div>
+                <textarea class="code-editor" id="ast-editor" placeholder="Type Lox code here..."></textarea>
+            </div>
+            <div class="pane">
+                <div class="pane-header">AST Visualization</div>
+                <div id="ast-visualization"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
-    import init, {run_lox, tokenize} from './pkg/rlox.js';
+    import init, {run_lox, tokenize, parse_to_ast} from './pkg/rlox.js';
 
     async function start() {
         try {
@@ -249,31 +366,47 @@
         // UI Elements
         const replView = document.getElementById('repl-view');
         const tokenView = document.getElementById('token-view');
+        const astView = document.getElementById('ast-view');
         const btnRepl = document.getElementById('btn-repl');
         const btnTokens = document.getElementById('btn-tokens');
+        const btnAst = document.getElementById('btn-ast');
 
         const input = document.getElementById('input');
         const terminal = document.getElementById('terminal');
         const editor = document.getElementById('editor');
         const visualization = document.getElementById('visualization');
+        const astEditor = document.getElementById('ast-editor');
+        const astVisualization = document.getElementById('ast-visualization');
 
         // Mode Switching
-        btnRepl.addEventListener('click', () => {
-            btnRepl.classList.add('active');
-            btnTokens.classList.remove('active');
-            replView.style.display = 'flex';
-            tokenView.style.display = 'none';
-            input.focus();
-        });
-
-        btnTokens.addEventListener('click', () => {
-            btnTokens.classList.add('active');
-            btnRepl.classList.remove('active');
+        function showView(view) {
             replView.style.display = 'none';
-            tokenView.style.display = 'flex';
-            editor.focus();
-            updateVisualization();
-        });
+            tokenView.style.display = 'none';
+            astView.style.display = 'none';
+            btnRepl.classList.remove('active');
+            btnTokens.classList.remove('active');
+            btnAst.classList.remove('active');
+
+            if (view === 'repl') {
+                replView.style.display = 'flex';
+                btnRepl.classList.add('active');
+                input.focus();
+            } else if (view === 'tokens') {
+                tokenView.style.display = 'flex';
+                btnTokens.classList.add('active');
+                editor.focus();
+                updateVisualization();
+            } else if (view === 'ast') {
+                astView.style.display = 'flex';
+                btnAst.classList.add('active');
+                astEditor.focus();
+                updateAstVisualization();
+            }
+        }
+
+        btnRepl.addEventListener('click', () => showView('repl'));
+        btnTokens.addEventListener('click', () => showView('tokens'));
+        btnAst.addEventListener('click', () => showView('ast'));
 
         // REPL Logic
         input.addEventListener('keydown', (e) => {
@@ -399,7 +532,94 @@
             }
         }
 
+        // AST Visualization Logic
+        function updateAstVisualization() {
+            const code = astEditor.value;
+            if (!code) {
+                astVisualization.innerHTML = '';
+                return;
+            }
+
+            try {
+                const ast = parse_to_ast(code);
+                if (typeof ast === 'string' && ast.startsWith('Parser error')) {
+                    astVisualization.textContent = ast;
+                    astVisualization.style.color = 'red';
+                    return;
+                }
+                astVisualization.style.color = '';
+                astVisualization.innerHTML = '';
+                astVisualization.appendChild(renderAstNode(ast));
+            } catch (err) {
+                astVisualization.textContent = `Error: ${err}`;
+                astVisualization.style.color = 'red';
+            }
+        }
+
+        function renderAstNode(node) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'ast-tree';
+
+            const nodeDiv = document.createElement('div');
+            nodeDiv.className = 'ast-node';
+
+            const typeDiv = document.createElement('div');
+            typeDiv.className = 'ast-node-type';
+
+            const variant = Object.keys(node)[0];
+            typeDiv.textContent = variant;
+            nodeDiv.appendChild(typeDiv);
+
+            const data = node[variant];
+            const children = [];
+
+            if (variant === 'Literal') {
+                const valDiv = document.createElement('div');
+                valDiv.className = 'ast-node-val';
+                let val = data.value;
+                if (val && typeof val === 'object') {
+                    val = Object.values(val)[0];
+                }
+                valDiv.textContent = val === null ? 'nil' : val;
+                nodeDiv.appendChild(valDiv);
+            } else if (variant === 'Binary') {
+                const opDiv = document.createElement('div');
+                opDiv.className = 'ast-node-val';
+                opDiv.textContent = data.operator.lexeme;
+                nodeDiv.appendChild(opDiv);
+
+                children.push(data.left);
+                children.push(data.right);
+            } else if (variant === 'Unary') {
+                const opDiv = document.createElement('div');
+                opDiv.className = 'ast-node-val';
+                opDiv.textContent = data.operator.lexeme;
+                nodeDiv.appendChild(opDiv);
+
+                children.push(data.right);
+            } else if (variant === 'Grouping') {
+                children.push(data.expression);
+            }
+
+            wrapper.appendChild(nodeDiv);
+
+            if (children.length > 0) {
+                nodeDiv.classList.add('has-children');
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'ast-children';
+
+                children.forEach(child => {
+                    childrenDiv.appendChild(renderAstNode(child));
+                });
+
+                wrapper.appendChild(childrenDiv);
+            }
+
+            return wrapper;
+        }
+
         editor.addEventListener('input', updateVisualization);
+        astEditor.addEventListener('input', updateAstVisualization);
     }
 
     start();

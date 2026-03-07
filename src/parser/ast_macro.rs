@@ -8,7 +8,7 @@ macro_rules! lox_ast {
         ),* $(,)?
     }) => {
         paste::paste! {
-            #[derive(Debug)]
+            #[derive(Debug, serde::Serialize, serde::Deserialize)]
             pub enum $name {
                 $(
                     $variant([<$variant Expr>])
@@ -39,7 +39,7 @@ macro_rules! lox_ast {
 
 
             $(
-                #[derive(Debug)]
+                #[derive(Debug, serde::Serialize, serde::Deserialize)]
                 pub struct [<$variant Expr>] {
                     $(pub $field: $field_type),*
                 }

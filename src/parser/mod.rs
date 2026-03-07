@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     parser::ast::Expression,
     scanner::{LiteralValue, Token, TokenType},
@@ -12,7 +14,16 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn parse(&self) {}
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Parser {
+            tokens,
+            current: 0,
+        }
+    }
+
+    pub fn parse(&mut self) -> Result<Expression, ParserError> {
+        self.parse_expression()
+    }
 
     fn parse_expression(&mut self) -> Result<Expression, ParserError> {
         self.parse_equality()
@@ -99,7 +110,7 @@ impl Parser {
             return Ok(Expression::grouping(Box::new(expression)));
         }
 
-        Err(ParserError::Heh)
+        Err(ParserError::UnexpectedToken(self.peek().clone()))
     }
 }
 
@@ -158,7 +169,19 @@ impl Parser {
 
 #[derive(Debug)]
 pub enum ParserError {
-    Heh,
+    UnexpectedToken(Token),
+}
+
+impl Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::UnexpectedToken(token) => write!(
+                f,
+                "Unexpected token: {:?} at line {:?}:{:?}",
+                &token.token_type, &token.line, &token.character
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -180,10 +203,7 @@ mod tests {
             ",
         )
         .collect::<Vec<_>>();
-        let mut parser = crate::parser::Parser {
-            tokens,
-            current: 0,
-        };
+        let mut parser = crate::parser::Parser::new(tokens);
         let result = parser.parse_expression().expect("Parsing failed.");
         let actual = result.accept(&PrettyPrinter::clear()).expect("Pretty printing failed.");
         assert_eq!(actual, "(1 + (((2 * ((3 - 4))) / 5) * 6))");

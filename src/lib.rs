@@ -5,8 +5,18 @@ use wasm_bindgen::prelude::*;
 pub mod parser;
 pub mod scanner;
 
+#[wasm_bindgen]
+pub fn parse_to_ast(input: String) -> JsValue {
+    let tokens = scanner::scan(&input).collect();
+    let mut parser = parser::Parser::new(tokens);
+    match parser.parse() {
+        Ok(ast) => serde_wasm_bindgen::to_value(&ast).unwrap(),
+        Err(e) => JsValue::from_str(&format!("Parser error: {}", e)),
+    }
+}
+
 pub fn run(input: String, print_tokens: bool) {
-    let tokens: Vec<scanner::Token> = scanner::scan(&input).collect();
+    let tokens = scanner::scan(&input).collect();
     if print_tokens {
         println!("{}", scanner::pretty(&tokens));
     }
