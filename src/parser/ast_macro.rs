@@ -29,6 +29,12 @@ macro_rules! lox_ast {
                         )*
                     }
                 }
+
+                $(
+                    pub fn [<$variant:snake>]($($field: $field_type),*) -> $name {
+                        $name::$variant([<$variant Expr>]::new($($field),*))
+                    }
+                ) *
             }
 
 
@@ -45,6 +51,10 @@ macro_rules! lox_ast {
                 }
 
                 impl [<$variant Expr>] {
+                    pub fn new($($field: $field_type),*) -> Self {
+                        Self { $($field),* }
+                    }
+
                     pub fn accept<R, E, T: ExpressionVisitor<R, E>>(&self, visitor: &T) -> Result<R, E> {
                         visitor.[<visit_ $variant:snake>](&self)
                     }

@@ -1,4 +1,7 @@
-use crate::{lox_ast, scanner::Token};
+use crate::{
+    lox_ast,
+    scanner::{LiteralValue, Token},
+};
 
 lox_ast!(
     Expression {
@@ -20,20 +23,28 @@ lox_ast!(
     }
 );
 
-#[derive(Debug)]
-pub enum LiteralValue {
-    String(String),
-    Number(f64),
-    Nil,
+#[derive(Default)]
+pub struct PrettyPrinter {
+    /// Whether to use parentheses to clearly show order of operations.
+    clear: bool,
 }
 
-struct PrettyPrinter;
+impl PrettyPrinter {
+    pub fn clear() -> Self {
+        PrettyPrinter {
+            clear: true,
+        }
+    }
+}
 
 impl ExpressionVisitor<String, ()> for PrettyPrinter {
     fn visit_binary(&self, expr: &BinaryExpr) -> Result<String, ()> {
         let left = expr.left.accept(self)?;
         let operator = expr.operator.lexeme.clone();
         let right = expr.right.accept(self)?;
+        if self.clear {
+            return Ok(format!("({} {} {})", left, operator, right));
+        }
         Ok(format!("{} {} {}", left, operator, right))
     }
 
@@ -46,6 +57,7 @@ impl ExpressionVisitor<String, ()> for PrettyPrinter {
         let value = match expr.value {
             LiteralValue::String(ref s) => format!("\"{}\"", s),
             LiteralValue::Number(n) => format!("{}", n),
+            LiteralValue::Boolean(b) => format!("{}", b),
             LiteralValue::Nil => "nil".to_string(),
         };
         Ok(value)
@@ -54,7 +66,10 @@ impl ExpressionVisitor<String, ()> for PrettyPrinter {
     fn visit_unary(&self, expr: &UnaryExpr) -> Result<String, ()> {
         let operator = expr.operator.lexeme.clone();
         let right = expr.right.accept(self)?;
-        Ok(format!("({} {})", operator, right))
+        if self.clear {
+            return Ok(format!("({}{})", operator, right));
+        }
+        Ok(format!("{}{}", operator, right))
     }
 }
 
@@ -76,12 +91,12 @@ mod tests {
             left: Box::new(Expression::Literal(LiteralExpr {
                 value: LiteralValue::String("Hello".to_string()),
             })),
-            operator: Token::new(TokenType::Plus, "+".to_string(), 0, 0),
+            operator: Token::new(TokenType::Plus, "+".to_string(), None, 0, 0),
             right: Box::new(Expression::Literal(LiteralExpr {
                 value: LiteralValue::String("World".to_string()),
             })),
         });
-        let result = expr.accept(&PrettyPrinter);
+        let result = expr.accept(&PrettyPrinter::default());
         assert_eq!(result.unwrap(), "\"Hello\" + \"World\"");
     }
 }
